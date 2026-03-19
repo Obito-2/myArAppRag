@@ -1,3 +1,4 @@
 {
-    "python.defaultInterpreterPath": "E:\\Miniconda\\envs\\rag\\python.exe"
+    "python.defaultInterpreterPath": "E:\\Miniconda\\envs\\rag\\python.exe",
+    "python.languageServer": "None"
 }
