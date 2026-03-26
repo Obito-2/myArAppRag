@@ -145,3 +145,96 @@ params = (
 
 - `embedding_values` 通过 `%s::vector` 传入字符串形式向量（如 `[0,0,0,...]`）
 - 如果暂时没有向量，可先传 `NULL`，后续再补写
+
+## 8. 写入后校验 SQL（建议每批次执行）
+
+### 8.1 基础计数
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM documents)   AS documents_cnt,
+  (SELECT COUNT(*) FROM text_chunks) AS text_chunks_cnt,
+  (SELECT COUNT(*) FROM image_chunks) AS image_chunks_cnt,
+  (SELECT COUNT(*) FROM relations)   AS relations_cnt;
+```
+
+### 8.2 检查 `text_chunks.book_id` 是否都能关联到文档
+
+```sql
+SELECT tc.chunk_id, tc.book_id
+FROM text_chunks tc
+LEFT JOIN documents d ON d.id = tc.book_id
+WHERE d.id IS NULL
+LIMIT 20;
+```
+
+### 8.3 检查 `image_chunks.book_id`（非空项）是否有效
+
+```sql
+SELECT ic.image_id, ic.book_id
+FROM image_chunks ic
+LEFT JOIN documents d ON d.id = ic.book_id
+WHERE ic.book_id IS NOT NULL
+  AND d.id IS NULL
+LIMIT 20;
+```
+
+### 8.4 检查向量维度是否为 1024
+
+```sql
+SELECT chunk_id, vector_dims(embedding_values) AS dims
+FROM text_chunks
+WHERE embedding_values IS NOT NULL
+  AND vector_dims(embedding_values) <> 1024
+LIMIT 20;
+```
+
+```sql
+SELECT image_id, vector_dims(embedding_values) AS dims
+FROM image_chunks
+WHERE embedding_values IS NOT NULL
+  AND vector_dims(embedding_values) <> 1024
+LIMIT 20;
+```
+
+### 8.5 检查 relations 的 source/target 是否存在（业务校验）
+
+```sql
+SELECT r.relation_id, r.source_type, r.source_id, r.target_type, r.target_id
+FROM relations r
+WHERE
+  (
+    r.source_type = 'image'
+    AND NOT EXISTS (SELECT 1 FROM image_chunks i WHERE i.image_id = r.source_id)
+  )
+  OR
+  (
+    r.source_type <> 'image'
+    AND NOT EXISTS (SELECT 1 FROM text_chunks t WHERE t.chunk_id = r.source_id)
+  )
+  OR
+  (
+    r.target_type = 'image'
+    AND NOT EXISTS (SELECT 1 FROM image_chunks i WHERE i.image_id = r.target_id)
+  )
+  OR
+  (
+    r.target_type <> 'image'
+    AND NOT EXISTS (SELECT 1 FROM text_chunks t WHERE t.chunk_id = r.target_id)
+  )
+LIMIT 20;
+```
+
+## 9. 常见失败与排查
+
+1. `insert or update on table ... violates foreign key constraint`  
+   通常是 `book_id` 指向了不存在的 `documents.id`。先写 `documents`，再写 chunk。
+
+2. `expected 1024 dimensions, not xxx`  
+   `embedding_values` 维度错误。确保向量长度固定 1024。
+
+3. `type "vector" does not exist`  
+   数据库没启用 `pgvector`。执行：`CREATE EXTENSION IF NOT EXISTS vector;`
+
+4. 检索效果差（召回不准）  
+   常见原因是只写了 `main_text`，没同步 `search_text` 和 `ts_vector`。建议入库时一起写。
