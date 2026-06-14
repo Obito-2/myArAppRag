@@ -223,7 +223,7 @@ def run_file(input_path: Path, output_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parent.parent
     # 根据你的实际路径调整
     inp = root / "knowledgeBase" / "pdfParse" / "cleaned_data" / "consolidated_corpus_3.md"
     outp = root / "knowledgeBase" / "pdfParse" / "cleaned_data" / "consolidated_corpus_3.3.md"
