@@ -7,9 +7,9 @@ from psycopg2.extras import RealDictCursor  # 返回字典格式的结果
 from urllib.parse import urlparse
 
 # 直接粘贴最新连接地址到这里即可，或通过环境变量 DB_URL 覆盖
-_DEFAULT_URL = "postgresql://postgres:lchgjt88@dbconn.sealoshzh.site:37083/postgres"
 
-_url = urlparse(os.getenv("DB_URL", _DEFAULT_URL))
+
+_url = urlparse(os.getenv("LOCAL_DB_URL"))
 DB_HOST     = _url.hostname
 DB_PORT     = str(_url.port or 5432)
 DB_NAME     = _url.path.lstrip("/") or "postgres"
